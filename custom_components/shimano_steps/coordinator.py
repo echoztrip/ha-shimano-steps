@@ -5,7 +5,8 @@ from __future__ import annotations
 import asyncio
 from collections.abc import Callable
 from contextlib import suppress
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
+from datetime import datetime, timezone
 import logging
 from time import monotonic
 
@@ -21,7 +22,8 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.dispatcher import async_dispatcher_send
 
 from .const import BATTERY_LEVEL, DFLY_TELEMETRY, DOMAIN
-from .protocol import battery_percent, odometer_meters
+from .protocol import DistanceFrame, assist_mode, battery_percent, distance_frame
+from .ride_log import RideLog
 
 _LOGGER = logging.getLogger(__name__)
 _WAKE_GAP = 30
@@ -30,26 +32,34 @@ _RETRY_DELAY = 8
 
 @dataclass(frozen=True, slots=True)
 class Telemetry:
-    """One complete battery and odometer reading."""
+    """One short session's readings."""
 
     battery: int
-    distance_m: int
+    distance: DistanceFrame
+    assist_mode: str | None
+    synced_at: datetime
+    since_previous_sync_km: float | None = None
 
 
 async def async_read_telemetry(device: BLEDevice) -> Telemetry:
-    """Read battery and capture one odometer notification."""
-    result: asyncio.Future[int | None] = asyncio.get_running_loop().create_future()
+    """Read battery and capture distance, range, and the available assist mode."""
+    loop = asyncio.get_running_loop()
+    distance_result: asyncio.Future[DistanceFrame | None] = loop.create_future()
+    mode_result: asyncio.Future[str | None] = loop.create_future()
 
     def handle_telemetry(_characteristic, data: bytearray) -> None:
-        distance = odometer_meters(data)
-        if distance is not None and not result.done():
-            result.set_result(distance)
+        if not distance_result.done() and (distance := distance_frame(data)) is not None:
+            distance_result.set_result(distance)
+        if not mode_result.done() and (mode := assist_mode(data)) is not None:
+            mode_result.set_result(mode)
 
     def handle_disconnect(_client: BleakClient) -> None:
-        if not result.done():
-            result.set_result(None)
+        if not distance_result.done():
+            distance_result.set_result(None)
+        if not mode_result.done():
+            mode_result.set_result(None)
 
-    async with asyncio.timeout(35):
+    async with asyncio.timeout(38):
         client = await establish_connection(
             BleakClient, device, "Shimano STEPS",
             disconnected_callback=handle_disconnect, max_attempts=1,
@@ -59,12 +69,17 @@ async def async_read_telemetry(device: BLEDevice) -> Telemetry:
             charge = battery_percent(await client.read_gatt_char(BATTERY_LEVEL))
             await client.start_notify(DFLY_TELEMETRY, handle_telemetry)
             async with asyncio.timeout(12):
-                distance = await result
+                distance = await distance_result
             if distance is None:
                 raise BleakError("Bike disconnected before reporting the odometer")
-            return Telemetry(charge, distance)
+            mode = None
+            with suppress(TimeoutError):
+                async with asyncio.timeout(2):
+                    mode = await mode_result
+            return Telemetry(charge, distance, mode, datetime.now(timezone.utc))
         finally:
-            result.cancel()
+            distance_result.cancel()
+            mode_result.cancel()
             with suppress(BleakError, TimeoutError, OSError):
                 async with asyncio.timeout(5):
                     await client.disconnect()
@@ -78,6 +93,7 @@ class ShimanoCoordinator:
         self.entry = entry
         self.address = address
         self.signal = f"{DOMAIN}_{entry.entry_id}"
+        self.ride_log = RideLog(hass, entry.entry_id)
         self.latest: Telemetry | None = None
         self._job: asyncio.Task[None] | None = None
         self._last_seen = float("-inf")
@@ -119,11 +135,18 @@ class ShimanoCoordinator:
 
     async def _async_sample(self, device: BLEDevice) -> None:
         try:
-            self.latest = await async_read_telemetry(device)
+            sample = await async_read_telemetry(device)
         except (BleakError, TimeoutError, OSError, ValueError) as err:
             # BLE exception strings can contain the address of the bike.
             _LOGGER.debug("Shimano telemetry read failed (%s)", type(err).__name__)
         else:
+            try:
+                distance_km = await self.ride_log.async_record(sample)
+            except OSError:
+                _LOGGER.warning("Could not save the Shimano STEPS ride log")
+            else:
+                sample = replace(sample, since_previous_sync_km=distance_km)
+            self.latest = sample
             self._sampled = True
             async_dispatcher_send(self.hass, self.signal)
         finally:

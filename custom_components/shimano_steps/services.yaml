@@ -1,0 +1,3 @@
+get_ride_log:
+  name: Get ride log
+  description: Return saved odometer increases between successful bike syncs.
