@@ -1,0 +1,17 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Add a Shimano STEPS bike",
+        "description": "Enter the bike display's Bluetooth address. The bike can stay off until you are ready to take the first reading.",
+        "data": {"address": "Bike Bluetooth address"}
+      },
+      "confirm": {
+        "title": "Add the discovered Shimano STEPS device",
+        "description": "Confirm this is a Shimano STEPS bike you want Home Assistant to monitor."
+      }
+    },
+    "error": {"invalid_address": "Enter six pairs of hexadecimal digits separated by colons."},
+    "abort": {"already_configured": "This bike is already configured."}
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "domain": "shimano_steps",
+  "name": "Shimano STEPS",
+  "bluetooth": [
+    {"connectable": true, "service_uuid": "000018ff-5348-494d-414e-4f5f424c4500"},
+    {"connectable": true, "service_uuid": "000018ef-5348-494d-414e-4f5f424c4500"}
+  ],
+  "codeowners": ["@echoztrip"],
+  "config_flow": true,
+  "dependencies": ["bluetooth_adapters"],
+  "documentation": "https://github.com/echoztrip/ha-shimano-steps",
+  "integration_type": "device",
+  "iot_class": "local_push",
+  "issue_tracker": "https://github.com/echoztrip/ha-shimano-steps/issues",
+  "requirements": [],
+  "version": "0.1.0"
+}
