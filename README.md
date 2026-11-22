@@ -19,6 +19,12 @@ The integration records snapshots within range of Home Assistant Bluetooth. Use 
 
 Positive distance changes are also saved in a local ride log that survives Recorder purges. Use **Developer tools → Actions → Shimano STEPS: Get ride log** to retrieve distances, sync timestamps, ending odometer readings, and battery percentages. A sync with no movement does not add a ride.
 
+## Battery readings
+
+**Battery** is the pack's state of charge at the last sync. **Battery change since previous sync** shows the net change in percentage points (`pp`). For example, a change from 60% to 48% is −12 pp. The ride log stores this change with a positive-distance record when both charge readings are known. Any charging between syncs is included in the net change.
+
+The first sync after installing v0.3.0 establishes the charge baseline. Earlier ride entries remain available. Battery state of health, remaining capacity, and charge cycles require separate diagnostics beyond the Bluetooth Battery Level and D-Fly telemetry used here.
+
 The integration listens for a fresh advertisement and opens a short connection. It takes one successful sample per advertising burst, accounting for a new burst after at least 30 seconds of silence. It keeps the last readings while the bike sleeps and restores them after a restart.
 
 A proxy must be within Bluetooth range of the display. Disconnect any phone app that is currently using the bike's Bluetooth connection before testing. The standard Bluetooth Battery Level read and the Shimano D-Fly notification subscription are sufficient for displays that allow this telemetry without a passkey prompt.

@@ -44,6 +44,12 @@ DESCRIPTIONS = (
         read=lambda sample: sample.battery,
     ),
     ShimanoDescription(
+        key="battery_change", name="Battery change since previous sync",
+        native_unit_of_measurement="pp",
+        suggested_display_precision=0,
+        read=lambda sample: sample.since_previous_sync_battery_pp,
+    ),
+    ShimanoDescription(
         key="odometer", name="Odometer",
         device_class=SensorDeviceClass.DISTANCE,
         native_unit_of_measurement=UnitOfLength.KILOMETERS,

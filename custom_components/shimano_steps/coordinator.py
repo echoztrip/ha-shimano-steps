@@ -39,6 +39,7 @@ class Telemetry:
     assist_mode: str | None
     synced_at: datetime
     since_previous_sync_km: float | None = None
+    since_previous_sync_battery_pp: int | None = None
 
 
 async def async_read_telemetry(device: BLEDevice) -> Telemetry:
@@ -141,11 +142,15 @@ class ShimanoCoordinator:
             _LOGGER.debug("Shimano telemetry read failed (%s)", type(err).__name__)
         else:
             try:
-                distance_km = await self.ride_log.async_record(sample)
+                changes = await self.ride_log.async_record(sample)
             except OSError:
                 _LOGGER.warning("Could not save the Shimano STEPS ride log")
             else:
-                sample = replace(sample, since_previous_sync_km=distance_km)
+                sample = replace(
+                    sample,
+                    since_previous_sync_km=changes.distance_km,
+                    since_previous_sync_battery_pp=changes.battery_pp,
+                )
             self.latest = sample
             self._sampled = True
             async_dispatcher_send(self.hass, self.signal)
