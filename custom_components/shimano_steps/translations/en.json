@@ -13,5 +13,17 @@
     },
     "error": {"invalid_address": "Enter six pairs of hexadecimal digits separated by colons."},
     "abort": {"already_configured": "This bike is already configured."}
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Battery diagnostics",
+        "description": "Record the latest readings from a battery diagnostics app or a Shimano service report. These fields are updated manually.",
+        "data": {
+          "battery_health": "Battery health (%)",
+          "battery_cycles": "Battery charge cycles"
+        }
+      }
+    }
   }
 }

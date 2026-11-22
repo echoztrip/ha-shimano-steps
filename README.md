@@ -23,7 +23,9 @@ Positive distance changes are also saved in a local ride log that survives Recor
 
 **Battery** is the pack's state of charge at the last sync. **Battery change since previous sync** shows the net change in percentage points (`pp`). For example, a change from 60% to 48% is −12 pp. The ride log stores this change with a positive-distance record when both charge readings are known. Any charging between syncs is included in the net change.
 
-The first sync after installing v0.3.0 establishes the charge baseline. Earlier ride entries remain available. Battery state of health, remaining capacity, and charge cycles require separate diagnostics beyond the Bluetooth Battery Level and D-Fly telemetry used here.
+The first sync after installing v0.3.0 or later establishes the charge baseline if none exists. Earlier ride entries remain available.
+
+For **Battery health** and **Battery charge cycles**, open the Shimano STEPS integration's **Configure** options and enter readings from a battery diagnostics app or Shimano service report. Home Assistant records changes to these diagnostic sensors. The values remain available with the bike off. The regular Bluetooth sync supplies charge level and riding telemetry. Update the diagnostic values whenever you obtain a new reading.
 
 The integration listens for a fresh advertisement and opens a short connection. It takes one successful sample per advertising burst, accounting for a new burst after at least 30 seconds of silence. It keeps the last readings while the bike sleeps and restores them after a restart.
 

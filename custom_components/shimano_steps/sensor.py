@@ -10,17 +10,18 @@ from typing import TYPE_CHECKING
 from homeassistant.components.sensor import (
     RestoreSensor,
     SensorDeviceClass,
+    SensorEntity,
     SensorEntityDescription,
     SensorStateClass,
 )
-from homeassistant.const import PERCENTAGE, UnitOfLength
+from homeassistant.const import PERCENTAGE, EntityCategory, UnitOfLength
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.util.dt import parse_datetime
 
-from .const import DOMAIN
+from .const import CONF_BATTERY_CYCLES, CONF_BATTERY_HEALTH, DOMAIN
 from .coordinator import ShimanoCoordinator, Telemetry
 from .protocol import ASSIST_MODES
 
@@ -102,13 +103,41 @@ DESCRIPTIONS = (
 )
 
 
+DIAGNOSTICS = (
+    SensorEntityDescription(
+        key=CONF_BATTERY_HEALTH, name="Battery health",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        native_unit_of_measurement=PERCENTAGE,
+        state_class=SensorStateClass.MEASUREMENT,
+    ),
+    SensorEntityDescription(
+        key=CONF_BATTERY_CYCLES, name="Battery charge cycles",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        native_unit_of_measurement="cycles",
+        state_class=SensorStateClass.TOTAL_INCREASING,
+    ),
+)
+
+
+def _device_info(address: str) -> DeviceInfo:
+    return DeviceInfo(
+        identifiers={(DOMAIN, address)}, manufacturer="Shimano", name="Shimano STEPS",
+    )
+
+
 async def async_setup_entry(
     hass: HomeAssistant,
     entry: ShimanoConfigEntry,
     async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
     coordinator = entry.runtime_data
-    async_add_entities([ShimanoSensor(coordinator, description) for description in DESCRIPTIONS])
+    async_add_entities(
+        [ShimanoSensor(coordinator, description) for description in DESCRIPTIONS]
+        + [
+            ShimanoDiagnostic(coordinator.address, description, entry.options.get(description.key))
+            for description in DIAGNOSTICS
+        ]
+    )
 
 
 class ShimanoSensor(RestoreSensor):
@@ -122,11 +151,7 @@ class ShimanoSensor(RestoreSensor):
         self._coordinator = coordinator
         self.entity_description = description
         self._attr_unique_id = f"{coordinator.address}_{description.key}"
-        self._attr_device_info = DeviceInfo(
-            identifiers={(DOMAIN, coordinator.address)},
-            manufacturer="Shimano",
-            name="Shimano STEPS",
-        )
+        self._attr_device_info = _device_info(coordinator.address)
 
     async def async_added_to_hass(self) -> None:
         await super().async_added_to_hass()
@@ -145,3 +170,18 @@ class ShimanoSensor(RestoreSensor):
         if (latest := self._coordinator.latest) is not None:
             self._attr_native_value = self.entity_description.read(latest)
             self.async_write_ha_state()
+
+
+class ShimanoDiagnostic(SensorEntity):
+    """Expose the last manually supplied battery diagnostic."""
+
+    _attr_has_entity_name = True
+    _attr_extra_state_attributes = {"source": "manual_diagnostic"}
+
+    def __init__(
+        self, address: str, description: SensorEntityDescription, value: int | None
+    ) -> None:
+        self.entity_description = description
+        self._attr_device_info = _device_info(address)
+        self._attr_unique_id = f"{address}_{description.key}"
+        self._attr_native_value = value
